@@ -1,1 +1,112 @@
+name: F-Droid-Repo veröffentlichen
 
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Projekt auschecken
+        uses: actions/checkout@v4
+
+      - name: Java einrichten
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Android SDK einrichten
+        uses: android-actions/setup-android@v3
+
+      - name: Gradle einrichten
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Keystore wiederherstellen
+        run: echo "${{ secrets.KEYSTORE_B64 }}" | base64 -d > "$GITHUB_WORKSPACE/keystore.jks"
+
+      - name: Signierte Release-APK bauen
+        env:
+          KEYSTORE_FILE: ${{ github.workspace }}/keystore.jks
+          KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASS }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.KEY_PASS }}
+        run: gradle assembleRelease --no-daemon
+
+      - name: fdroidserver installieren
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fdroidserver
+
+      - name: Repo-Adresse bestimmen
+        run: |
+          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          REPO="${{ github.event.repository.name }}"
+          echo "REPO_URL=https://$OWNER.github.io/$REPO/fdroid/repo" >> "$GITHUB_ENV"
+
+      - name: F-Droid-Repo erzeugen
+        env:
+          KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASS }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.KEY_PASS }}
+        run: |
+          mkdir -p fdroidrepo/repo fdroidrepo/metadata
+          cp app/build/outputs/apk/release/app-release.apk fdroidrepo/repo/
+          cd fdroidrepo
+          cat > config.yml <<EOF
+          repo_url: "$REPO_URL"
+          repo_name: "Heat Zähler (inoffiziell)"
+          repo_description: "Inoffizieller Rennzähler für das Brettspiel Heat."
+          archive_older: 0
+          keystore: "$GITHUB_WORKSPACE/keystore.jks"
+          repo_keyalias: "$KEY_ALIAS"
+          keystorepass: "$KEYSTORE_PASS"
+          keypass: "$KEY_PASS"
+          keydname: "CN=Heat Zaehler"
+          sdk_path: "$ANDROID_HOME"
+          make_current_version_link: false
+          EOF
+          fdroid update --create-metadata --pretty
+
+      - name: Landing-Seite + Repo zusammenstellen
+        run: |
+          mkdir -p public/fdroid
+          cp -r fdroidrepo/repo public/fdroid/repo
+          cat > public/index.html <<HTML
+          <!doctype html><meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <title>Heat Zähler – F-Droid-Repo</title>
+          <body style="font-family:system-ui;max-width:640px;margin:40px auto;padding:0 16px;background:#14161a;color:#ece9e1">
+          <h1>Heat Zähler – F-Droid-Repo</h1>
+          <p>Füge diese Adresse in der F-Droid-App unter <b>Einstellungen → Repositories → +</b> hinzu:</p>
+          <p style="background:#23262e;padding:12px;border-radius:8px;word-break:break-all">$REPO_URL</p>
+          <p>Danach erscheint „Heat Zähler" in F-Droid und lässt sich installieren und aktualisieren.</p>
+          </body>
+          HTML
+
+      - name: Pages-Artefakt hochladen
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Auf GitHub Pages veröffentlichen
+        id: deployment
+        uses: actions/deploy-pages@v4
