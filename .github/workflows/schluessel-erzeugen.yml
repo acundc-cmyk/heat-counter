@@ -1,1 +1,51 @@
+name: Schlüssel erzeugen (einmalig)
 
+on:
+  workflow_dispatch:
+
+jobs:
+  keygen:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Java einrichten
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Keystore und Passwort erzeugen
+        run: |
+          PASS=$(openssl rand -hex 20)
+          echo "::add-mask::$PASS"
+          keytool -genkeypair -v -keystore keystore.jks -alias heat \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass "$PASS" -keypass "$PASS" \
+            -dname "CN=Heat Zaehler" -noprompt
+          base64 -w0 keystore.jks > keystore.b64
+          {
+            echo "==============================================================="
+            echo " So traegst du die vier Secrets ein:"
+            echo " GitHub-Repo -> Settings -> Secrets and variables -> Actions"
+            echo " -> New repository secret (fuer jeden Eintrag einmal)"
+            echo "==============================================================="
+            echo ""
+            echo "KEYSTORE_PASS = $PASS"
+            echo "KEY_ALIAS     = heat"
+            echo "KEY_PASS      = $PASS"
+            echo ""
+            echo "KEYSTORE_B64  = kompletter Inhalt der Datei keystore.b64"
+            echo "                (im selben Download enthalten, mit Texteditor oeffnen)"
+            echo ""
+            echo "Danach diesen Workflow-Lauf loeschen (Actions -> Lauf -> ... -> Delete)."
+            echo "keystore.jks als Sicherung gut aufbewahren."
+          } > SECRETS.txt
+
+      - name: Ergebnis zum Download bereitstellen
+        uses: actions/upload-artifact@v4
+        with:
+          name: heat-schluessel
+          path: |
+            keystore.b64
+            keystore.jks
+            SECRETS.txt
+          retention-days: 1
