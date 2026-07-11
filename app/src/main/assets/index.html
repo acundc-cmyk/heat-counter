@@ -1,0 +1,965 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#14161a">
+<title>Heat – Meisterschafts-Zähler</title>
+<style>
+  :root{
+    --asphalt:#14161a;
+    --panel:#1e2128;
+    --panel-2:#262a33;
+    --line:#33384360;
+    --text:#ece9e1;
+    --muted:#9aa0ad;
+    --heat:#ff5a2c;      /* Redline / Hitze */
+    --amber:#f6a623;     /* Öltemperatur */
+    --gold:#e8b84b;
+    --silver:#c8ccd4;
+    --bronze:#cf8b52;
+    --ok:#4bbf7a;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0}
+  body{
+    background:
+      radial-gradient(1200px 500px at 50% -10%, #20242c 0%, var(--asphalt) 60%);
+    color:var(--text);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    min-height:100vh;
+    padding-bottom:env(safe-area-inset-bottom);
+    line-height:1.4;
+  }
+  .cond{font-family:"Arial Narrow","Roboto Condensed","Helvetica Neue",sans-serif;
+    text-transform:uppercase;letter-spacing:.06em;font-weight:800}
+  .num{font-variant-numeric:tabular-nums}
+
+  /* Kopf */
+  header{
+    position:sticky;top:0;z-index:20;
+    background:linear-gradient(180deg,#181b21 0%,#181b21ee 70%,#181b2100 100%);
+    padding:calc(env(safe-area-inset-top) + 14px) 18px 16px;
+    backdrop-filter:blur(6px);
+  }
+  .brand{display:flex;align-items:center;gap:12px}
+  .flag{width:26px;height:26px;border-radius:5px;flex:none;
+    background:
+      conic-gradient(#000 90deg,#fff 90deg 180deg,#000 180deg 270deg,#fff 270deg);
+    background-size:13px 13px;box-shadow:0 0 0 1px #ffffff22, 0 2px 8px #0007}
+  .brand h1{font-size:19px;margin:0;letter-spacing:.14em}
+  .brand small{display:block;color:var(--muted);font-size:11px;letter-spacing:.22em;
+    font-weight:700;margin-top:2px}
+  .gauge{margin-top:14px;height:6px;border-radius:99px;overflow:hidden;
+    background:#0c0e12;box-shadow:inset 0 0 0 1px #ffffff10}
+  .gauge i{display:block;height:100%;width:100%;
+    background:linear-gradient(90deg,#2f6d46,var(--amber) 55%,var(--heat))}
+
+  main{max-width:680px;margin:0 auto;padding:18px 16px 40px}
+
+  /* Karten */
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;
+    padding:16px;margin-bottom:14px;box-shadow:0 6px 22px #0004}
+  .card h2{margin:0 0 12px;font-size:13px;letter-spacing:.16em}
+  .eyebrow{color:var(--muted);font-size:11px;letter-spacing:.2em;font-weight:800;
+    text-transform:uppercase;margin-bottom:6px}
+
+  /* Buttons & Inputs */
+  button{font-family:inherit;cursor:pointer;border:none;border-radius:12px;
+    font-weight:700;transition:transform .06s ease, filter .15s ease}
+  button:active{transform:translateY(1px)}
+  .btn{background:var(--heat);color:#1a0d07;padding:13px 18px;font-size:15px;
+    width:100%;letter-spacing:.04em}
+  .btn:disabled{filter:grayscale(.6) brightness(.7);cursor:not-allowed}
+  .btn.ghost{background:#2b2f38;color:var(--text);box-shadow:inset 0 0 0 1px var(--line)}
+  .btn.slim{padding:10px 14px;font-size:13px;width:auto}
+  .btn.mini{padding:7px 10px;font-size:12px;width:auto;border-radius:9px}
+  .danger{background:#3a2020;color:#ff9c86;box-shadow:inset 0 0 0 1px #5a2a2a}
+  input,select{font-family:inherit;font-size:16px;color:var(--text);
+    background:var(--panel-2);border:1px solid var(--line);border-radius:11px;
+    padding:12px 13px;width:100%;outline:none}
+  input:focus,select:focus{border-color:var(--heat)}
+  label.fld{display:block;margin-bottom:12px}
+  label.fld span{display:block;font-size:12px;color:var(--muted);margin-bottom:5px;
+    letter-spacing:.05em}
+  .row{display:flex;gap:10px}
+  .row>*{flex:1}
+
+  /* Tabs */
+  nav.tabs{display:flex;gap:6px;background:var(--panel);border:1px solid var(--line);
+    border-radius:14px;padding:5px;margin-bottom:16px;position:sticky;top:96px;z-index:10}
+  nav.tabs button{flex:1;background:transparent;color:var(--muted);padding:10px 3px;
+    font-size:11px;letter-spacing:.03em;text-transform:uppercase}
+  nav.tabs button.active{background:var(--heat);color:#1a0d07}
+
+  /* Typ-Umschalter Fahrer/Bot */
+  .seg{display:flex;gap:6px;background:var(--panel-2);border:1px solid var(--line);
+    border-radius:11px;padding:4px;margin-bottom:12px}
+  .seg button{flex:1;background:transparent;color:var(--muted);padding:9px;font-size:13px;
+    letter-spacing:.06em;text-transform:uppercase}
+  .seg button.active{background:var(--amber);color:#1a1206}
+  .badge{display:inline-block;font-size:9px;font-weight:800;letter-spacing:.12em;
+    padding:2px 6px;border-radius:5px;background:#3a3f49;color:#c4c9d2;margin-left:7px;
+    vertical-align:middle}
+
+  /* Helm-Farbwähler */
+  .cars{display:flex;flex-wrap:wrap;gap:8px;margin-top:5px}
+  .carbtn{background:var(--panel-2);border-radius:10px;width:52px;height:44px;
+    display:grid;place-items:center;box-shadow:inset 0 0 0 1px var(--line)}
+  .carbtn svg{width:34px;height:31px;display:block}
+  .carbtn.sel{box-shadow:inset 0 0 0 1px var(--line),0 0 0 2px var(--heat)}
+  .carmark{display:inline-flex;width:23px;height:21px;flex:none;vertical-align:middle}
+  .carmark svg{width:100%;height:100%;display:block}
+  .flag2{display:inline-block;width:19px;height:13px;border-radius:2px;overflow:hidden;
+    vertical-align:-2px;margin-right:6px;box-shadow:0 0 0 1px #ffffff22,0 1px 2px #0007;flex:none}
+  .flag2 svg{display:block;width:100%;height:100%}
+  .flagtrack{width:24px;height:16px;margin-right:0;vertical-align:middle}
+
+  /* Fahrer-Statistik */
+  .dhead{display:flex;align-items:center;gap:12px;margin:2px 0 16px}
+  .dhead .carmark{width:34px;height:31px}
+  .dtitle b{font-size:20px;display:block}
+  .dtitle small{color:var(--muted);font-size:13px}
+  .tap{cursor:pointer}
+  .stats{display:flex;gap:9px;margin-bottom:9px}
+  .stat{flex:1;background:var(--panel-2);border-radius:12px;padding:12px 8px;text-align:center}
+  .stat .v{font-size:24px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.1}
+  .stat .l{font-size:10.5px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-top:3px}
+  .stat.gold .v{color:var(--gold)}
+  .stat.silver .v{color:var(--silver)}
+  .stat.bronze .v{color:var(--bronze)}
+  .chart{background:var(--panel-2);border-radius:12px;padding:10px 6px 4px;margin-top:6px}
+  .chart svg{width:100%;height:auto;display:block}
+  .trackstat{display:flex;align-items:center;gap:12px;background:var(--panel-2);
+    border-radius:12px;padding:11px 12px;margin-bottom:6px}
+  .trackstat .who b{font-size:15px}
+  .trackstat .who small{color:var(--muted);font-size:12px}
+  .chev{color:#5b616e;font-size:20px;margin-left:4px;flex:none}
+
+  /* Fahrer-Pool + Drag-and-Drop */
+  .pool{display:flex;flex-wrap:wrap;gap:8px;margin:2px 0 4px}
+  .poolchip{display:inline-flex;align-items:center;gap:7px;background:var(--panel-2);
+    border:1px solid var(--line);border-radius:999px;padding:6px 13px 6px 8px;font-size:13px;
+    color:var(--text);touch-action:none;user-select:none;-webkit-user-select:none;cursor:grab}
+  .poolchip .carmark{width:20px;height:18px}
+  .poolchip .badge{margin-left:4px}
+  .poolchip.ghost{position:fixed;z-index:999;pointer-events:none;left:0;top:0;
+    transform:translate(-50%,-50%);opacity:.92;box-shadow:0 10px 26px #000a}
+  .rosterzone{border-radius:12px;min-height:6px;transition:background .15s,outline-color .15s}
+  .rosterzone.dropactive{background:#ffffff08;padding:6px;outline:2px dashed var(--heat);outline-offset:2px}
+  .rosterzone.dropover{outline-color:var(--ok);background:#4bbf7a1a}
+
+  /* Saison-Historie */
+  .seasonrow{display:flex;align-items:center;gap:11px;background:var(--panel-2);
+    border-radius:10px;padding:9px 12px;margin-bottom:6px}
+  .seasonrow .pos{width:26px;height:26px;font-size:13px}
+  .seasonrow .nm{flex:1;font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .seasonrow .res{font-size:13px;font-weight:800;text-align:right;flex:none}
+  .seasonrow .res .sub2{display:block;font-size:10px;color:var(--muted);font-weight:500;
+    letter-spacing:.02em;margin-top:1px}
+
+  /* Fahrer-/Streckenzeilen */
+  .item{display:flex;align-items:center;gap:12px;padding:11px 12px;background:var(--panel-2);
+    border-radius:12px;margin-bottom:9px}
+  .dot{width:16px;height:16px;border-radius:50%;flex:none;box-shadow:inset 0 0 0 2px #0006}
+  .item .who{flex:1;min-width:0}
+  .item .who b{display:block;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .item .who small{color:var(--muted);font-size:12px}
+  .x{background:#2b2f38;color:var(--muted);width:30px;height:30px;border-radius:8px;
+    font-size:16px;flex:none;line-height:1}
+
+  /* Rennauswahl */
+  .racepick{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;margin-bottom:14px;
+    -webkit-overflow-scrolling:touch}
+  .racepick button{flex:none;background:var(--panel-2);color:var(--muted);
+    padding:9px 14px;border-radius:10px;font-size:13px;letter-spacing:.06em;
+    box-shadow:inset 0 0 0 1px var(--line)}
+  .racepick button.active{background:var(--amber);color:#1a1206;box-shadow:none}
+  .racepick button .chk{color:var(--ok);margin-left:6px}
+
+  /* Punkteeingabe */
+  .scorerow{display:flex;align-items:center;gap:10px;padding:10px 12px;
+    background:var(--panel-2);border-radius:12px;margin-bottom:9px}
+  .scorerow .who{flex:1;min-width:0}
+  .scorerow select{width:78px;flex:none;padding:9px 6px;text-align:center}
+  .scorerow .pts{width:66px;flex:none;text-align:center;font-weight:800;font-size:17px}
+  .hint{font-size:12px;color:var(--muted);background:#00000030;border-radius:10px;
+    padding:10px 12px;margin-bottom:12px;line-height:1.5}
+  .hint b{color:var(--amber)}
+
+  /* Rangliste */
+  .stand{position:relative;background:var(--panel-2);border-radius:12px;margin-bottom:9px;
+    padding:13px 14px;overflow:hidden}
+  .stand .bar{position:absolute;inset:0;width:0;opacity:.16;
+    background:linear-gradient(90deg,var(--amber),var(--heat));transition:width .5s ease}
+  .stand .rowline{position:relative;display:flex;align-items:center;gap:12px}
+  .pos{width:30px;height:30px;border-radius:8px;flex:none;display:grid;place-items:center;
+    font-size:15px;background:#0c0e12;color:var(--muted)}
+  .pos.p1{background:var(--gold);color:#241a02}
+  .pos.p2{background:var(--silver);color:#20242c}
+  .pos.p3{background:var(--bronze);color:#241202}
+  .stand .who{flex:1;min-width:0}
+  .stand .who b{display:block;font-size:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .stand .who small{color:var(--muted);font-size:12px}
+  .total{font-size:26px;font-weight:800;letter-spacing:.02em}
+  .total small{font-size:11px;color:var(--muted);letter-spacing:.14em;display:block;text-align:right}
+
+  .empty{text-align:center;color:var(--muted);padding:34px 10px;font-size:14px}
+  .empty .big{font-size:40px;margin-bottom:8px;opacity:.5}
+
+  /* Punkte-Matrix (Fahrer × Rennen) */
+  .matrixwrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:14px;
+    border:1px solid var(--line);background:var(--panel);box-shadow:0 6px 22px #0004}
+  table.matrix{border-collapse:separate;border-spacing:0;width:max-content;min-width:100%}
+  .matrix th,.matrix td{padding:11px 12px;font-size:14px;white-space:nowrap;
+    border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+  .matrix td{text-align:center}
+  .matrix thead th{font-size:11px;letter-spacing:.06em;text-transform:uppercase;
+    color:var(--muted);background:var(--panel-2);position:sticky;top:0;z-index:1;text-align:center}
+  .matrix th.name{position:sticky;left:0;background:var(--panel);text-align:left;
+    min-width:150px;z-index:2}
+  .matrix thead th.name{background:var(--panel-2);z-index:3}
+  .matrix tbody tr:last-child th,.matrix tbody tr:last-child td{border-bottom:none}
+  .matrix th.name .carmark{margin-right:8px}
+  .matrix th.name .who2{display:inline-block;vertical-align:middle}
+  .matrix th.name .nm{display:block;font-weight:700;font-size:14px}
+  .matrix th.name .team{display:block;font-size:11px;color:var(--muted);margin-top:1px}
+  .matrix .tot{font-weight:800;color:var(--amber);background:#00000026}
+  .matrix thead th.tot{color:var(--amber);background:#00000026}
+  .matrix .dash{color:#5b616e}
+  .legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:12px;font-size:11px;color:var(--muted)}
+  .legend b{color:var(--text);margin-right:5px;letter-spacing:.04em}
+
+  /* Startbildschirm */
+  .champrow{display:flex;align-items:center;gap:12px;padding:14px;background:var(--panel-2);
+    border-radius:13px;margin-bottom:10px;cursor:pointer;box-shadow:inset 0 0 0 1px var(--line)}
+  .champrow:active{filter:brightness(1.1)}
+  .champrow .meta{flex:1;min-width:0}
+  .champrow .meta b{font-size:16px}
+  .champrow .meta small{display:block;color:var(--muted);font-size:12px;margin-top:2px}
+  .champrow .go{color:var(--heat);font-size:20px}
+
+  .backlink{background:none;color:var(--muted);font-size:13px;padding:8px 0;
+    letter-spacing:.06em;display:inline-flex;align-items:center;gap:6px;margin-bottom:4px}
+  .sub{color:var(--muted);font-size:13px;margin:-6px 0 16px}
+  .foot{color:#5b616e;font-size:11px;text-align:center;margin-top:24px;letter-spacing:.04em}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <div class="flag" aria-hidden="true"></div>
+    <div>
+      <h1 class="cond">Heat</h1>
+      <small>Meisterschafts-Zähler</small>
+    </div>
+  </div>
+  <div class="gauge"><i id="gaugeFill"></i></div>
+</header>
+
+<main id="app"></main>
+
+<script>
+/* ---------- Speicher: nutzt Claude-Storage falls vorhanden, sonst localStorage ---------- */
+const store = {
+  async get(key){
+    if (window.storage){
+      try{ const r = await window.storage.get(key, false); return r ? JSON.parse(r.value) : null; }
+      catch(e){ return null; }
+    }
+    try{ const v = localStorage.getItem(key); return v ? JSON.parse(v) : null; }
+    catch(e){ return null; }
+  },
+  async set(key,val){
+    const s = JSON.stringify(val);
+    if (window.storage){
+      try{ await window.storage.set(key, s, false); return; }catch(e){}
+    }
+    try{ localStorage.setItem(key, s); }catch(e){}
+  }
+};
+const KEY = "heat_meisterschaften_v1";
+
+/* ---------- Daten ---------- */
+const TEAM_COLORS = [
+  ["Rot","#e23b32"],["Blau","#2f7fe0"],["Grün","#3aa657"],["Gelb","#efc340"],
+  ["Orange","#ee8022"],["Violett","#8a5cd1"],["Pink","#e765a8"],["Weiß","#f1f1ee"],
+  ["Grau","#9aa0ad"],["Schwarz","#3a3f49"]
+];
+const BASE_TRACKS = ["USA","Großbritannien","Italien","Frankreich","Deutschland","Spanien","Mexiko","Niederlande","Südafrika","Japan"];
+
+let state = { champs:[], view:{screen:"home", champId:null, tab:"setup", raceId:null} };
+
+async function load(){
+  const data = await store.get(KEY);
+  if (data && Array.isArray(data.champs)) state.champs = data.champs;
+  render();
+}
+function save(){ store.set(KEY, {champs:state.champs}); }
+const uid = () => Math.random().toString(36).slice(2,9);
+const curChamp = () => state.champs.find(c => c.id === state.view.champId) || null;
+
+/* Rennfahrerhelm (Seitenansicht) in Teamfarbe */
+function carSVG(color){
+  return `<svg viewBox="0 0 40 36" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <path d="M9 26 C4 22 4 13 11 8 C17 3.6 27 3.6 33 8 C37.5 11.4 37.5 17.5 35.5 21 C34.6 22.6 32.5 23.5 30 23.5 L30 25.5 C30 28.2 27.8 29.8 24 29.8 L15 29.8 C11.6 29.8 9.6 28.4 9 26 Z" fill="${color}" stroke="#00000066" stroke-width="0.8"/>
+    <path d="M12 8.6 C18 4.8 26.5 4.8 32 8.4 L30 11 C25.5 8.2 18.2 8.2 14 11 Z" fill="#ffffff55"/>
+    <path d="M20.5 12.5 C25 11.6 31 12.4 34.4 14.6 C33.8 17.8 31.5 19.6 28 19.9 L22 19.9 C19.6 19.7 18.8 13.4 20.5 12.5 Z" fill="#171a20"/>
+    <path d="M24 13.5 C27 13.1 30.5 13.7 32.8 15 C31 15.2 27 14.7 24 14.5 Z" fill="#ffffff33"/>
+    <rect x="15" y="25.4" width="9" height="2.4" rx="1.2" fill="#171a20"/>
+  </svg>`;
+}
+function carMark(color){ return `<span class="carmark">${carSVG(color)}</span>`; }
+
+/* Nationen + Länderflaggen (als kompakte SVG, funktionieren auch offline) */
+const NATIONS = [
+  ["de","Deutschland"],["at","Österreich"],["ch","Schweiz"],["gb","Großbritannien"],
+  ["fr","Frankreich"],["it","Italien"],["es","Spanien"],["nl","Niederlande"],
+  ["be","Belgien"],["us","USA"],["mx","Mexiko"],["ca","Kanada"],["br","Brasilien"],
+  ["za","Südafrika"],["jp","Japan"],["au","Australien"],["fi","Finnland"],
+  ["se","Schweden"],["dk","Dänemark"],["hr","Kroatien"],
+  ["ba","Bosnien und Herzegowina"],["dd","DDR"],["su","Sowjetunion"]
+];
+const NATION_NAME = Object.fromEntries(NATIONS);
+const FLAGS = {
+ de:'<rect width="24" height="16" fill="#000"/><rect y="5.33" width="24" height="5.34" fill="#dd0000"/><rect y="10.67" width="24" height="5.33" fill="#ffce00"/>',
+ at:'<rect width="24" height="16" fill="#ed2939"/><rect y="5.33" width="24" height="5.34" fill="#fff"/>',
+ ch:'<rect width="24" height="16" fill="#d52b1e"/><rect x="10.5" y="3" width="3" height="10" fill="#fff"/><rect x="7" y="6.5" width="10" height="3" fill="#fff"/>',
+ gb:'<rect width="24" height="16" fill="#012169"/><path d="M0 0 L24 16 M24 0 L0 16" stroke="#fff" stroke-width="3.2"/><path d="M0 0 L24 16 M24 0 L0 16" stroke="#c8102e" stroke-width="1.6"/><path d="M12 0 V16 M0 8 H24" stroke="#fff" stroke-width="5"/><path d="M12 0 V16 M0 8 H24" stroke="#c8102e" stroke-width="3"/>',
+ fr:'<rect width="24" height="16" fill="#fff"/><rect width="8" height="16" fill="#002395"/><rect x="16" width="8" height="16" fill="#ed2939"/>',
+ it:'<rect width="24" height="16" fill="#fff"/><rect width="8" height="16" fill="#009246"/><rect x="16" width="8" height="16" fill="#ce2b37"/>',
+ es:'<rect width="24" height="16" fill="#c60b1e"/><rect y="4" width="24" height="8" fill="#ffc400"/>',
+ nl:'<rect width="24" height="16" fill="#fff"/><rect width="24" height="5.33" fill="#ae1c28"/><rect y="10.67" width="24" height="5.33" fill="#21468b"/>',
+ be:'<rect width="24" height="16" fill="#f5c518"/><rect width="8" height="16" fill="#111"/><rect x="16" width="8" height="16" fill="#ed2939"/>',
+ us:'<rect width="24" height="16" fill="#fff"/><g fill="#b22234"><rect width="24" height="1.23"/><rect y="2.46" width="24" height="1.23"/><rect y="4.92" width="24" height="1.23"/><rect y="7.38" width="24" height="1.23"/><rect y="9.85" width="24" height="1.23"/><rect y="12.31" width="24" height="1.23"/><rect y="14.77" width="24" height="1.23"/></g><rect width="10" height="8.6" fill="#3c3b6e"/><g fill="#fff"><circle cx="1.6" cy="1.5" r="0.5"/><circle cx="3.8" cy="1.5" r="0.5"/><circle cx="6" cy="1.5" r="0.5"/><circle cx="8.2" cy="1.5" r="0.5"/><circle cx="2.7" cy="3.2" r="0.5"/><circle cx="4.9" cy="3.2" r="0.5"/><circle cx="7.1" cy="3.2" r="0.5"/><circle cx="1.6" cy="4.9" r="0.5"/><circle cx="3.8" cy="4.9" r="0.5"/><circle cx="6" cy="4.9" r="0.5"/><circle cx="8.2" cy="4.9" r="0.5"/><circle cx="2.7" cy="6.6" r="0.5"/><circle cx="4.9" cy="6.6" r="0.5"/><circle cx="7.1" cy="6.6" r="0.5"/></g>',
+ mx:'<rect width="24" height="16" fill="#fff"/><rect width="8" height="16" fill="#006847"/><rect x="16" width="8" height="16" fill="#ce1126"/>',
+ ca:'<rect width="24" height="16" fill="#fff"/><rect width="6" height="16" fill="#d52b1e"/><rect x="18" width="6" height="16" fill="#d52b1e"/><path d="M12 3.5 L12.8 6.8 L15.5 6 L14 8.4 L16.4 9 L12.8 10 L13.3 13 L12 11.4 L10.7 13 L11.2 10 L7.6 9 L10 8.4 L8.5 6 L11.2 6.8 Z" fill="#d52b1e"/>',
+ br:'<rect width="24" height="16" fill="#009c3b"/><polygon points="12,2 22,8 12,14 2,8" fill="#ffdf00"/><circle cx="12" cy="8" r="3.2" fill="#002776"/>',
+ za:'<rect width="24" height="8" fill="#de3831"/><rect y="8" width="24" height="8" fill="#002395"/><rect y="5.4" width="24" height="5.2" fill="#fff"/><rect y="6.1" width="24" height="3.8" fill="#007a4d"/><polygon points="0,0 11.5,8 0,16" fill="#fff"/><polygon points="0,0.9 10.2,8 0,15.1" fill="#ffb612"/><polygon points="0,2.3 8.6,8 0,13.7" fill="#000"/>',
+ jp:'<rect width="24" height="16" fill="#fff"/><circle cx="12" cy="8" r="4.8" fill="#bc002d"/>',
+ au:'<rect width="24" height="16" fill="#00247d"/><path d="M0 0 L10 6.4 M10 0 L0 6.4" stroke="#fff" stroke-width="1.4"/><path d="M5 0 V6.4 M0 3.2 H10" stroke="#fff" stroke-width="2"/><path d="M5 0 V6.4 M0 3.2 H10" stroke="#c8102e" stroke-width="1"/><g fill="#fff"><circle cx="5" cy="12.3" r="1.2"/><circle cx="17" cy="4" r="0.7"/><circle cx="20.2" cy="7" r="0.7"/><circle cx="17.3" cy="10.2" r="0.7"/><circle cx="14.7" cy="7.3" r="0.55"/><circle cx="18.8" cy="12.6" r="0.5"/></g>',
+ fi:'<rect width="24" height="16" fill="#fff"/><rect x="6" width="3.5" height="16" fill="#003580"/><rect y="6.25" width="24" height="3.5" fill="#003580"/>',
+ se:'<rect width="24" height="16" fill="#006aa7"/><rect x="6" width="3.2" height="16" fill="#fecc00"/><rect y="6.4" width="24" height="3.2" fill="#fecc00"/>',
+ dk:'<rect width="24" height="16" fill="#c60c30"/><rect x="6" width="3" height="16" fill="#fff"/><rect y="6.5" width="24" height="3" fill="#fff"/>',
+ hr:'<rect width="24" height="16" fill="#fff"/><rect width="24" height="5.33" fill="#ff0000"/><rect y="10.67" width="24" height="5.33" fill="#171796"/><rect x="9" y="5" width="6" height="6" fill="#fff"/><g fill="#ff0000"><rect x="9" y="5" width="2" height="2"/><rect x="13" y="5" width="2" height="2"/><rect x="11" y="7" width="2" height="2"/><rect x="9" y="9" width="2" height="2"/><rect x="13" y="9" width="2" height="2"/></g>',
+ ba:'<rect width="24" height="16" fill="#002395"/><polygon points="7,0 24,0 24,16" fill="#fecb00"/><polygon points="8.89,0.88 9.11,1.47 9.74,1.50 9.25,1.89 9.42,2.51 8.89,2.16 8.36,2.51 8.53,1.89 8.03,1.50 8.67,1.47" fill="#fff"/><polygon points="10.78,2.66 11.00,3.25 11.63,3.28 11.14,3.67 11.31,4.28 10.78,3.93 10.25,4.28 10.42,3.67 9.92,3.28 10.56,3.25" fill="#fff"/><polygon points="12.67,4.43 12.89,5.03 13.52,5.06 13.03,5.45 13.20,6.06 12.67,5.71 12.14,6.06 12.31,5.45 11.81,5.06 12.44,5.03" fill="#fff"/><polygon points="14.56,6.21 14.78,6.81 15.41,6.83 14.92,7.23 15.08,7.84 14.56,7.49 14.03,7.84 14.20,7.23 13.70,6.83 14.33,6.81" fill="#fff"/><polygon points="16.44,7.99 16.67,8.58 17.30,8.61 16.80,9.01 16.97,9.62 16.44,9.27 15.92,9.62 16.08,9.01 15.59,8.61 16.22,8.58" fill="#fff"/><polygon points="18.33,9.77 18.56,10.36 19.19,10.39 18.69,10.78 18.86,11.39 18.33,11.04 17.80,11.39 17.97,10.78 17.48,10.39 18.11,10.36" fill="#fff"/><polygon points="20.22,11.54 20.44,12.14 21.08,12.17 20.58,12.56 20.75,13.17 20.22,12.82 19.69,13.17 19.86,12.56 19.37,12.17 20.00,12.14" fill="#fff"/><polygon points="22.11,13.32 22.33,13.92 22.97,13.94 22.47,14.34 22.64,14.95 22.11,14.60 21.58,14.95 21.75,14.34 21.26,13.94 21.89,13.92" fill="#fff"/>',
+ dd:'<rect width="24" height="16" fill="#000"/><rect y="5.33" width="24" height="5.34" fill="#dd0000"/><rect y="10.67" width="24" height="5.33" fill="#ffce00"/><circle cx="12" cy="8" r="3" fill="none" stroke="#1a1a1a" stroke-width="0.7"/><line x1="9.5" y1="10.2" x2="14.5" y2="5.8" stroke="#1a1a1a" stroke-width="0.8"/><path d="M10 6 a3 3 0 0 0 0 4" fill="none" stroke="#1a1a1a" stroke-width="0.8"/>',
+ su:'<rect width="24" height="16" fill="#c8102e"/><polygon points="5.50,1.60 6.09,3.18 7.78,3.26 6.46,4.31 6.91,5.94 5.50,5.01 4.09,5.94 4.54,4.31 3.22,3.26 4.91,3.18" fill="#ffd700"/><path d="M3.6 8.2 a2.6 2.6 0 0 0 4.4 1.9" fill="none" stroke="#ffd700" stroke-width="0.9"/><line x1="4.2" y1="9.6" x2="7.6" y2="11.6" stroke="#ffd700" stroke-width="1"/><line x1="7.6" y1="11.6" x2="8.4" y2="10.2" stroke="#ffd700" stroke-width="1.6"/>'
+};
+function flagMark(code){
+  if(!code || !FLAGS[code]) return '';
+  return `<span class="flag2" title="${esc(NATION_NAME[code]||'')}"><svg viewBox="0 0 24 16" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">${FLAGS[code]}</svg></span>`;
+}
+/* Strecke → Landesflagge (Streckennamen entsprechen den Ländernamen) */
+const NAME_TO_NATION = Object.fromEntries(NATIONS.map(([c,n])=>[n,c]));
+function trackMark(name){
+  const code = NAME_TO_NATION[name];
+  if(code && FLAGS[code])
+    return `<span class="flag2 flagtrack" title="${esc(name)}"><svg viewBox="0 0 24 16" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">${FLAGS[code]}</svg></span>`;
+  return `<span class="dot" style="background:var(--amber)"></span>`;
+}
+
+/* ---------- Punktetabelle (Heat-Championship: feste Platzpunkte) ---------- */
+const POINTS = [9,6,4,3,2,1]; // 1.–6. Platz; ab 7. Platz = 0
+function pointsForPlace(place){ return POINTS[place-1] ?? 0; }
+const POINTS_REF = "1.=9 · 2.=6 · 3.=4 · 4.=3 · 5.=2 · 6.=1 · 7.–12.=0";
+function totals(champ){
+  const t = {};
+  champ.drivers.forEach(d => t[d.id] = 0);
+  Object.values(champ.results).forEach(race => {
+    Object.entries(race).forEach(([did,p]) => { if(t[did]!==undefined) t[did]+= (+p||0); });
+  });
+  return t;
+}
+
+/* Platzierung eines Fahrers in einem Rennen (unter allen mit Ergebnis, inkl. Bots) */
+function posInRace(champ, trackId, driverId){
+  const res = champ.results[trackId];
+  if(!res || res[driverId]===undefined) return null;
+  const mine = +res[driverId];
+  let better = 0;
+  Object.values(res).forEach(p => { if((+p) > mine) better++; });
+  return better + 1;
+}
+
+/* Saisonstatistik für einen Fahrer in einer Meisterschaft */
+function seasonStats(champ, d){
+  const placements=[]; let wins=0,p2=0,p3=0,points=0;
+  champ.tracks.forEach(tr => {
+    const res = champ.results[tr.id];
+    if(res && res[d.id]!==undefined){
+      const pts = +res[d.id], pos = posInRace(champ,tr.id,d.id);
+      points += pts;
+      if(pos===1)wins++; else if(pos===2)p2++; else if(pos===3)p3++;
+      placements.push({track:tr.name, pos, pts});
+    }
+  });
+  return {races:placements.length, wins,p2,p3, points, placements};
+}
+
+/* Historie über alle Meisterschaften – Fahrer per Name zusammengefasst */
+function historyStats(name){
+  const key = (name||"").trim().toLowerCase();
+  let races=0,wins=0,p2=0,p3=0; const seasons=new Set(); const agg={};
+  state.champs.forEach(c => {
+    c.drivers.filter(d => d.name.trim().toLowerCase()===key).forEach(d => {
+      let drove=false;
+      c.tracks.forEach(tr => {
+        const res = c.results[tr.id];
+        if(res && res[d.id]!==undefined){
+          drove=true; races++;
+          const pts = +res[d.id], pos = posInRace(c,tr.id,d.id);
+          if(pos===1)wins++; else if(pos===2)p2++; else if(pos===3)p3++;
+          const a = agg[tr.name] || (agg[tr.name]={pts:0,count:0});
+          a.pts += pts; a.count++;
+        }
+      });
+      if(drove) seasons.add(c.id);
+    });
+  });
+  let fav=null, hate=null;
+  Object.entries(agg).forEach(([tname,a]) => {
+    const avg = a.pts/a.count;
+    if(!fav || avg>fav.avg) fav={track:tname, avg, count:a.count, pts:a.pts};
+    if(!hate || avg<hate.avg) hate={track:tname, avg, count:a.count, pts:a.pts};
+  });
+  return {races,wins,p2,p3, seasons:seasons.size, fav, hate, tracks:Object.keys(agg).length};
+}
+
+/* Kleines SVG-Diagramm der Platzierungen über die Saison */
+function placementsChart(placements){
+  if(!placements.length)
+    return `<div class="empty" style="padding:20px">Noch keine Ergebnisse in dieser Saison.</div>`;
+  const n=placements.length;
+  const maxPos=Math.max(3, ...placements.map(p=>p.pos));
+  const W=Math.max(260, n*52), H=150, padL=26, padR=14, padT=16, padB=32;
+  const plotW=W-padL-padR, plotH=H-padT-padB;
+  const X=i => padL + (n===1 ? plotW/2 : plotW*i/(n-1));
+  const Y=pos => padT + plotH*(pos-1)/((maxPos-1)||1);
+  const podColor = pos => pos===1?'var(--gold)':pos===2?'var(--silver)':pos===3?'var(--bronze)':'var(--amber)';
+  let grid='', ylab='';
+  for(let pos=1; pos<=maxPos; pos++){
+    const y=Y(pos);
+    grid += `<line x1="${padL}" y1="${y}" x2="${W-padR}" y2="${y}" stroke="#ffffff12" stroke-width="1"/>`;
+    if(pos<=3 || pos===maxPos)
+      ylab += `<text x="${padL-6}" y="${y+3}" text-anchor="end" fill="#8b8f99" font-size="9">${pos}.</text>`;
+  }
+  const line = placements.map((p,i)=>`${X(i)},${Y(p.pos)}`).join(' ');
+  const dots = placements.map((p,i)=>{
+    const x=X(i), y=Y(p.pos);
+    return `<circle cx="${x}" cy="${y}" r="4.5" fill="${podColor(p.pos)}" stroke="#14161a" stroke-width="1.5"/>
+      <text x="${x}" y="${H-padB+16}" text-anchor="middle" fill="#8b8f99" font-size="9">${esc(shortCode(p.track))}</text>`;
+  }).join('');
+  return `<div class="chart"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
+    ${grid}${ylab}
+    <polyline points="${line}" fill="none" stroke="#ffffff33" stroke-width="2" stroke-linejoin="round"/>
+    ${dots}
+  </svg></div>`;
+}
+
+/* Bekannte Fahrer aus allen Meisterschaften – für Übernahme in neue Saison */
+function knownDriversPool(champ){
+  const have = new Set(champ.drivers.map(d => d.name.trim().toLowerCase()));
+  const seen = new Map();
+  state.champs.forEach(c => c.drivers.forEach(d => {
+    const k = d.name.trim().toLowerCase();
+    if(!k || have.has(k) || seen.has(k)) return;
+    seen.set(k, {name:d.name, team:d.team||'', color:d.color, nation:d.nation||'', isBot:!!d.isBot});
+  }));
+  return [...seen.values()].sort((a,b)=>a.name.localeCompare(b.name,'de'));
+}
+function addKnown(champ, idx){
+  const p = knownDriversPool(champ)[idx];
+  if(!p) return;
+  champ.drivers.push({id:uid(), name:p.name, team:p.team, nation:p.nation, color:p.color, isBot:p.isBot});
+  save(); render();
+}
+/* Drag-and-Drop (Touch + Maus) für den Fahrer-Pool */
+function setupDnD(champ){
+  const chips = document.querySelectorAll('.poolchip');
+  const zone = document.getElementById('rosterZone');
+  if(!chips.length || !zone) return;
+  const inZone = (x,y)=>{ const r=zone.getBoundingClientRect(); return x>=r.left&&x<=r.right&&y>=r.top&&y<=r.bottom; };
+  chips.forEach(chip => {
+    const idx = +chip.dataset.pool;
+    let ghost=null, moved=false, sx=0, sy=0;
+    chip.addEventListener('pointerdown', e => {
+      e.preventDefault(); moved=false; sx=e.clientX; sy=e.clientY;
+      try{ chip.setPointerCapture(e.pointerId); }catch(_){}
+      const move = ev => {
+        if(!moved && Math.hypot(ev.clientX-sx, ev.clientY-sy) > 6){
+          moved=true; ghost=chip.cloneNode(true); ghost.classList.add('ghost');
+          document.body.appendChild(ghost); zone.classList.add('dropactive');
+        }
+        if(moved && ghost){
+          ghost.style.left=ev.clientX+'px'; ghost.style.top=ev.clientY+'px';
+          zone.classList.toggle('dropover', inZone(ev.clientX,ev.clientY));
+        }
+      };
+      const up = ev => {
+        chip.removeEventListener('pointermove',move);
+        chip.removeEventListener('pointerup',up);
+        try{ chip.releasePointerCapture(e.pointerId); }catch(_){}
+        if(ghost){ ghost.remove(); ghost=null; }
+        zone.classList.remove('dropactive','dropover');
+        if(moved ? inZone(ev.clientX,ev.clientY) : true) addKnown(champ, idx);
+      };
+      chip.addEventListener('pointermove',move);
+      chip.addEventListener('pointerup',up);
+    });
+  });
+}
+
+/* Meisterschaftshistorie eines Fahrers (Abschlussplatzierung je Saison) */
+function historySeasons(name){
+  const key=(name||'').trim().toLowerCase();
+  const out=[];
+  [...state.champs].reverse().forEach(c => {
+    const d = c.drivers.find(x=>x.name.trim().toLowerCase()===key);
+    if(!d) return;
+    const played = Object.values(c.results).some(r=>Object.keys(r).length);
+    const t = totals(c), my = t[d.id]||0;
+    let rank=1; c.drivers.forEach(o => { if((t[o.id]||0) > my) rank++; });
+    out.push({champ:c.name, rank, field:c.drivers.length, points:my, played});
+  });
+  return out;
+}
+
+/* ---------- Rendern ---------- */
+function render(){
+  const app = document.getElementById("app");
+  const s = state.view.screen;
+  if (s==="home") app.innerHTML = viewHome();
+  else if (s==="driver"){
+    const c = curChamp();
+    const d = c && c.drivers.find(x=>x.id===state.view.driverId);
+    if (c && d) app.innerHTML = viewDriver(c,d);
+    else { state.view.screen="champ"; app.innerHTML = viewChamp(); }
+  }
+  else app.innerHTML = viewChamp();
+  wire();
+  // Hitze-Anzeige oben je nach Fortschritt
+  const c = curChamp();
+  let pct = 8;
+  if (c && c.tracks.length){
+    const done = c.tracks.filter(t => c.results[t.id] && Object.keys(c.results[t.id]).length).length;
+    pct = Math.max(8, Math.round(done / c.tracks.length * 100));
+  }
+  document.getElementById("gaugeFill").style.width = pct + "%";
+}
+
+function viewHome(){
+  const list = state.champs.length ? state.champs.map(c => {
+    const nR = c.tracks.length, done = c.tracks.filter(t=>c.results[t.id]&&Object.keys(c.results[t.id]).length).length;
+    return `<div class="champrow" data-open="${c.id}">
+      <div class="flag" style="width:22px;height:22px"></div>
+      <div class="meta"><b>${esc(c.name)}</b>
+        <small>${c.drivers.length} Fahrer · ${done}/${nR} Rennen gefahren</small></div>
+      <div class="go">›</div>
+    </div>`;
+  }).join("") : `<div class="empty"><div class="big">🏁</div>Noch keine Meisterschaft.<br>Starte deinen ersten Champions-Chip.</div>`;
+
+  return `
+    <div class="eyebrow">Champions-Chip</div>
+    <h2 class="cond" style="font-size:22px;margin:0 0 4px">Deine Meisterschaften</h2>
+    <p class="sub">Lege eine Saison an, trage nach jedem Rennen die Punkte ein und behalte die Gesamtwertung im Blick.</p>
+    <div class="card">${list}</div>
+    <button class="btn" id="newChamp">＋ Neue Meisterschaft starten</button>
+    <p class="foot">Daten bleiben nur auf diesem Gerät gespeichert.</p>
+  `;
+}
+
+function viewChamp(){
+  const c = curChamp();
+  if(!c){ state.view.screen="home"; return viewHome(); }
+  const tab = state.view.tab;
+  const tabs = `
+    <nav class="tabs">
+      <button data-tab="setup" class="${tab==='setup'?'active':''}">Setup</button>
+      <button data-tab="rennen" class="${tab==='rennen'?'active':''}">Rennen</button>
+      <button data-tab="rang" class="${tab==='rang'?'active':''}">Rangliste</button>
+      <button data-tab="matrix" class="${tab==='matrix'?'active':''}">Tabelle</button>
+    </nav>`;
+  let body = "";
+  if (tab==="setup") body = tabSetup(c);
+  else if (tab==="rennen") body = tabRennen(c);
+  else if (tab==="matrix") body = tabMatrix(c);
+  else body = tabRang(c);
+
+  return `
+    <button class="backlink" id="back">‹ Alle Meisterschaften</button>
+    <h2 class="cond" style="font-size:22px;margin:2px 0 14px">${esc(c.name)}</h2>
+    ${tabs}
+    ${body}
+  `;
+}
+
+/* --- Tab 1: Setup (Fahrer + Strecken) --- */
+function tabSetup(c){
+  const drivers = c.drivers.length ? c.drivers.map(d => `
+    <div class="item">
+      ${carMark(d.color)}
+      <div class="who tap" data-driver="${d.id}"><b>${flagMark(d.nation)}${esc(d.name)}${d.isBot?'<span class="badge">Bot</span>':''}</b>
+        <small>${esc(d.team)||"—"}</small></div>
+      <span class="chev tap" data-driver="${d.id}">›</span>
+      <button class="x" data-deldriver="${d.id}">×</button>
+    </div>`).join("") : `<div class="empty" style="padding:18px">Noch keine Fahrer oder Bots.</div>`;
+
+  const swatches = TEAM_COLORS.map((tc,i) =>
+    `<button type="button" class="carbtn ${i===0?'sel':''}" data-color="${tc[1]}" title="${tc[0]}" aria-label="${tc[0]}">${carSVG(tc[1])}</button>`
+  ).join("");
+
+  const pool = knownDriversPool(c);
+  const poolChips = pool.map((p,i) =>
+    `<button class="poolchip" data-pool="${i}">${carMark(p.color)}<span>${flagMark(p.nation)}${esc(p.name)}${p.isBot?'<span class="badge">Bot</span>':''}</span></button>`
+  ).join("");
+
+  const chosen = c.tracks.map(t => `
+    <div class="item">
+      ${trackMark(t.name)}
+      <div class="who"><b>${esc(t.name)}</b></div>
+      <button class="x" data-deltrack="${t.id}">×</button>
+    </div>`).join("");
+  const usable = BASE_TRACKS.filter(name => !c.tracks.some(t=>t.name===name));
+  const trackBtns = usable.map(n => `<button class="btn ghost mini" data-addtrack="${n}">＋ ${n}</button>`).join(" ");
+
+  return `
+    <div class="card">
+      <h2 class="cond">Fahrer &amp; Bots</h2>
+      ${pool.length?`<div class="eyebrow">Bekannte Fahrer</div>
+        <p class="sub" style="margin:2px 0 8px">Tippe oder ziehe einen Fahrer in die Aufstellung, um ihn zu übernehmen.</p>
+        <div class="pool">${poolChips}</div>
+        <div class="eyebrow" style="margin-top:12px">Aufstellung</div>`:''}
+      ${c.drivers.length?'<p class="sub" style="margin:2px 0 10px">Tippe auf einen Namen für Statistik &amp; Historie.</p>':''}
+      <div id="rosterZone" class="rosterzone">${drivers}</div>
+      <div style="margin-top:14px">
+        <div class="seg" id="typePick">
+          <button data-type="driver" class="active">Fahrer</button>
+          <button data-type="bot">Bot</button>
+        </div>
+        <label class="fld"><span id="nameLbl">Name des Fahrers</span>
+          <input id="dName" placeholder="z. B. Anna" autocomplete="off"></label>
+        <label class="fld"><span>Teamname <span style="opacity:.6">(optional)</span></span>
+          <input id="dTeam" placeholder="z. B. Scuderia Blitz" autocomplete="off"></label>
+        <label class="fld"><span>Nation <span style="opacity:.6">(optional)</span></span>
+          <select id="dNation">
+            <option value="">— keine —</option>
+            ${[...NATIONS].sort((a,b)=>a[1].localeCompare(b[1],'de')).map(([code,name])=>`<option value="${code}">${esc(name)}</option>`).join("")}
+          </select></label>
+        <span style="font-size:12px;color:var(--muted)">Farbe des Teams</span>
+        <div class="cars" id="colorPick">${swatches}</div>
+        <button class="btn slim" id="addDriver" style="margin-top:14px;width:100%">Hinzufügen</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 class="cond">Strecken</h2>
+      ${chosen || `<div class="empty" style="padding:18px">Noch keine Strecke gewählt.</div>`}
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px">
+        ${trackBtns || `<small style="color:var(--muted)">Alle Standard-Strecken gewählt.</small>`}
+      </div>
+      <div class="row" style="margin-top:12px">
+        <input id="customTrack" placeholder="Eigene Strecke…" autocomplete="off">
+        <button class="btn slim" id="addCustom" style="flex:none">＋</button>
+      </div>
+    </div>
+
+    <button class="btn danger" id="delChamp">Diese Meisterschaft löschen</button>
+  `;
+}
+
+/* --- Tab 2: Rennen (Punkte eingeben) --- */
+function tabRennen(c){
+  if (!c.drivers.length || !c.tracks.length){
+    return `<div class="card"><div class="empty">
+      <div class="big">🧩</div>Lege zuerst im <b>Setup</b> Fahrer und mindestens eine Strecke an.</div></div>`;
+  }
+  if (!state.view.raceId || !c.tracks.some(t=>t.id===state.view.raceId))
+    state.view.raceId = c.tracks[0].id;
+
+  const picker = c.tracks.map(t => {
+    const done = c.results[t.id] && Object.keys(c.results[t.id]).length;
+    return `<button data-race="${t.id}" class="${t.id===state.view.raceId?'active':''}">
+      ${esc(t.name)}${done?'<span class="chk">✓</span>':''}</button>`;
+  }).join("");
+
+  const t = c.tracks.find(x=>x.id===state.view.raceId);
+  const n = c.drivers.length;
+  const res = c.results[t.id] || {};
+
+  const rows = c.drivers.map(d => {
+    const val = res[d.id];
+    const opts = ['<option value="">Platz</option>']
+      .concat(c.drivers.map((_,i)=>`<option value="${i+1}">${i+1}. Platz</option>`)).join("");
+    return `<div class="scorerow">
+      ${carMark(d.color)}
+      <div class="who"><b style="font-size:15px">${flagMark(d.nation)}${esc(d.name)}${d.isBot?'<span class="badge">Bot</span>':''}</b>
+        <small style="color:var(--muted)">${esc(d.team)||"—"}</small></div>
+      <select data-place="${d.id}">${opts}</select>
+      <input class="pts num" type="number" inputmode="numeric" data-pts="${d.id}"
+        value="${val!==undefined?val:''}" placeholder="0">
+    </div>`;
+  }).join("");
+
+  return `
+    <div class="racepick">${picker}</div>
+    <div class="hint">Wähle einen <b>Platz</b> — die Punkte werden nach der Heat-Tabelle automatisch gesetzt. Jede Zahl lässt sich von Hand überschreiben.<br>
+      Punkte: ${POINTS_REF}</div>
+    <div class="card" style="padding:12px">${rows}
+      <button class="btn slim" id="clearRace" style="width:100%;margin-top:6px;background:#2b2f38;color:var(--muted);box-shadow:inset 0 0 0 1px var(--line)">Punkte dieses Rennens zurücksetzen</button>
+    </div>
+  `;
+}
+
+/* --- Tab 3: Rangliste --- */
+function tabRang(c){
+  if (!c.drivers.length)
+    return `<div class="card"><div class="empty"><div class="big">🏆</div>Noch keine Fahrer.</div></div>`;
+  const t = totals(c);
+  const ranked = [...c.drivers].sort((a,b)=> t[b.id]-t[a.id]);
+  const max = Math.max(1, ...Object.values(t));
+  const rows = ranked.map((d,i) => {
+    const pos = i+1;
+    const sub = esc(d.team) || (d.isBot ? "Bot" : "—");
+    return `<div class="stand tap" data-driver="${d.id}">
+      <span class="bar" style="width:${Math.round(t[d.id]/max*100)}%"></span>
+      <div class="rowline">
+        <span class="pos ${pos<=3?'p'+pos:''} num">${pos}</span>
+        ${carMark(d.color)}
+        <div class="who"><b>${flagMark(d.nation)}${esc(d.name)}${d.isBot?'<span class="badge">Bot</span>':''}</b>
+          <small>${sub}</small></div>
+        <div class="total num">${t[d.id]}<small>Punkte</small></div>
+        <span class="chev">›</span>
+      </div>
+    </div>`;
+  }).join("");
+  return `<div class="card" style="background:transparent;border:none;box-shadow:none;padding:0">${rows}</div>`;
+}
+
+/* --- Tab 4: Tabelle (Punkte pro Rennen) --- */
+function shortCode(name){
+  const map={"USA":"USA","Großbritannien":"GB","Italien":"ITA","Frankreich":"FRA",
+    "Deutschland":"GER","Spanien":"ESP","Mexiko":"MEX","Niederlande":"NED",
+    "Südafrika":"RSA","Japan":"JPN"};
+  return map[name] || name.slice(0,3).toUpperCase();
+}
+function tabMatrix(c){
+  if (!c.drivers.length || !c.tracks.length)
+    return `<div class="card"><div class="empty"><div class="big">📊</div>
+      Sobald Fahrer und Strecken im <b>Setup</b> stehen, erscheint hier die Punktetabelle.</div></div>`;
+
+  const t = totals(c);
+  const ranked = [...c.drivers].sort((a,b)=> t[b.id]-t[a.id]);
+
+  const head = `<tr>
+    <th class="name">Fahrer</th>
+    ${c.tracks.map(tr=>`<th title="${esc(tr.name)}">${esc(shortCode(tr.name))}</th>`).join("")}
+    <th class="tot">Ges.</th></tr>`;
+
+  const rows = ranked.map(d => {
+    const cells = c.tracks.map(tr => {
+      const v = c.results[tr.id] && c.results[tr.id][d.id];
+      return `<td>${v!==undefined && v!==false ? v : '<span class="dash">–</span>'}</td>`;
+    }).join("");
+    return `<tr>
+      <th class="name">${carMark(d.color)}<span class="who2"><span class="nm">${flagMark(d.nation)}${esc(d.name)}${d.isBot?'<span class="badge">Bot</span>':''}</span>${d.team?`<span class="team">${esc(d.team)}</span>`:''}</span></th>
+      ${cells}<td class="tot">${t[d.id]}</td></tr>`;
+  }).join("");
+
+  const legend = c.tracks.filter(tr=>shortCode(tr.name)!==tr.name)
+    .map(tr=>`<span><b>${esc(shortCode(tr.name))}</b>${esc(tr.name)}</span>`).join("");
+
+  return `
+    <div class="hint">Punkte jedes Fahrers und Bots pro Rennen. Bei vielen Strecken seitlich wischen — die Namensspalte bleibt stehen. „–" heißt: noch nicht eingetragen.</div>
+    <div class="matrixwrap"><table class="matrix">
+      <thead>${head}</thead><tbody>${rows}</tbody>
+    </table></div>
+    ${legend?`<div class="legend">${legend}</div>`:''}
+  `;
+}
+
+/* ---------- Fahrer-Statistik ---------- */
+function statTile(v,l,cls){ return `<div class="stat ${cls||''}"><div class="v">${v}</div><div class="l">${l}</div></div>`; }
+function trackStat(label, ts){
+  if(!ts) return '';
+  return `<div class="eyebrow" style="margin-top:8px">${label}</div>
+    <div class="trackstat">${trackMark(ts.track)}<div class="who"><b>${esc(ts.track)}</b>
+      <small>Ø ${ts.avg.toFixed(1)} Punkte · ${ts.count} Rennen</small></div></div>`;
+}
+function seasonHistoryHTML(name){
+  const rows = historySeasons(name);
+  if(!rows.length) return '';
+  return `<div class="eyebrow" style="margin-top:10px">Meisterschaften</div>` + rows.map(r => `
+    <div class="seasonrow">
+      <span class="pos ${r.played&&r.rank<=3?'p'+r.rank:''} num">${r.played?r.rank:'–'}</span>
+      <div class="nm">${esc(r.champ)}</div>
+      <div class="res">${r.played?(r.rank===1?'Sieger':r.rank+'. Platz'):'läuft noch'}<span class="sub2">von ${r.field} · ${r.points} Pkt</span></div>
+    </div>`).join('');
+}
+function viewDriver(c,d){
+  const s = seasonStats(c,d);
+  const h = historyStats(d.name);
+  const avgS = s.races ? (s.points/s.races).toFixed(1) : '–';
+  return `
+    <button class="backlink" id="backDrv">‹ ${esc(c.name)}</button>
+    <div class="dhead">${carMark(d.color)}
+      <div class="dtitle"><b>${flagMark(d.nation)}${esc(d.name)}${d.isBot?'<span class="badge">Bot</span>':''}</b>
+        <small>${esc(d.team)||'—'}</small></div></div>
+
+    <div class="card">
+      <div class="eyebrow">Saison · ${esc(c.name)}</div>
+      <div class="stats">
+        ${statTile(s.wins,'Siege','gold')}
+        ${statTile(s.p2,'2. Plätze','silver')}
+        ${statTile(s.p3,'3. Plätze','bronze')}
+      </div>
+      <div class="stats">
+        ${statTile(s.races,'Rennen')}
+        ${statTile(s.points,'Punkte')}
+        ${statTile(avgS,'Ø Punkte')}
+      </div>
+      <div class="eyebrow" style="margin-top:8px">Platzierungen</div>
+      ${placementsChart(s.placements)}
+    </div>
+
+    <div class="card">
+      <div class="eyebrow">Historie · alle Saisons</div>
+      <div class="stats">
+        ${statTile(h.races,'Rennen')}
+        ${statTile(h.seasons,h.seasons===1?'Saison':'Saisons')}
+      </div>
+      <div class="stats">
+        ${statTile(h.wins,'Siege','gold')}
+        ${statTile(h.p2,'2. Plätze','silver')}
+        ${statTile(h.p3,'3. Plätze','bronze')}
+      </div>
+      ${seasonHistoryHTML(d.name)}
+      ${h.races ? trackStat('Lieblingsstrecke', h.fav) : `<div class="empty" style="padding:16px">Noch keine gefahrenen Rennen.</div>`}
+      ${(h.tracks>=2) ? trackStat('Hass-Strecke', h.hate) : ''}
+    </div>
+  `;
+}
+let pickedColor = TEAM_COLORS[0][1];
+let pickedType = "driver";
+function wire(){
+  const $ = s => document.querySelector(s);
+  const $$ = s => document.querySelectorAll(s);
+
+  // Home
+  const nc = $("#newChamp");
+  if (nc) nc.onclick = () => {
+    const name = prompt("Name der Meisterschaft:", "Saison " + new Date().getFullYear());
+    if (!name) return;
+    const c = { id:uid(), name:name.trim(), drivers:[], tracks:[], results:{} };
+    state.champs.unshift(c); save();
+    state.view = {screen:"champ", champId:c.id, tab:"setup", raceId:null};
+    render();
+  };
+  $$("[data-open]").forEach(el => el.onclick = () => {
+    state.view = {screen:"champ", champId:el.dataset.open, tab:"setup", raceId:null}; render();
+  });
+
+  // Zurück / Tabs
+  const bk = $("#back"); if (bk) bk.onclick = () => { state.view={screen:"home",champId:null,tab:"setup",raceId:null}; render(); };
+  $$("[data-tab]").forEach(b => b.onclick = () => { state.view.tab=b.dataset.tab; render(); });
+
+  const c = curChamp();
+  if (!c) return;
+
+  // Fahrer-Statistik öffnen / zurück
+  const bd = $("#backDrv");
+  if (bd) bd.onclick = () => { state.view.screen="champ"; render(); };
+  $$("[data-driver]").forEach(el => el.onclick = () => {
+    state.view.screen="driver"; state.view.driverId=el.dataset.driver; render();
+  });
+  setupDnD(c);
+
+  // Wagenfarbe wählen
+  pickedColor = TEAM_COLORS[0][1];
+  $$("#colorPick .carbtn").forEach(sw => sw.onclick = () => {
+    $$("#colorPick .carbtn").forEach(x=>x.classList.remove("sel"));
+    sw.classList.add("sel"); pickedColor = sw.dataset.color;
+  });
+
+  // Typ-Umschalter (Fahrer/Bot)
+  pickedType = "driver";
+  $$("#typePick button").forEach(b => b.onclick = () => {
+    $$("#typePick button").forEach(x=>x.classList.remove("active"));
+    b.classList.add("active"); pickedType = b.dataset.type;
+    const lbl = $("#nameLbl"); if (lbl) lbl.textContent = pickedType==="bot" ? "Name des Bots" : "Name des Fahrers";
+  });
+
+  // Fahrer / Bot hinzufügen
+  const ad = $("#addDriver");
+  if (ad) ad.onclick = () => {
+    const name = $("#dName").value.trim();
+    if (!name){ $("#dName").focus(); return; }
+    c.drivers.push({ id:uid(), name, team:$("#dTeam").value.trim(),
+      nation: $("#dNation").value, color:pickedColor, isBot: pickedType==="bot" });
+    save(); render();
+  };
+  $$("[data-deldriver]").forEach(b => b.onclick = () => {
+    c.drivers = c.drivers.filter(d=>d.id!==b.dataset.deldriver);
+    Object.values(c.results).forEach(r=>delete r[b.dataset.deldriver]);
+    save(); render();
+  });
+
+  // Strecken
+  $$("[data-addtrack]").forEach(b => b.onclick = () => {
+    c.tracks.push({id:uid(), name:b.dataset.addtrack}); save(); render();
+  });
+  const acu = $("#addCustom");
+  if (acu) acu.onclick = () => {
+    const v = $("#customTrack").value.trim(); if(!v) return;
+    c.tracks.push({id:uid(), name:v}); save(); render();
+  };
+  $$("[data-deltrack]").forEach(b => b.onclick = () => {
+    c.tracks = c.tracks.filter(t=>t.id!==b.dataset.deltrack);
+    delete c.results[b.dataset.deltrack]; save(); render();
+  });
+
+  // Meisterschaft löschen
+  const dc = $("#delChamp");
+  if (dc) dc.onclick = () => {
+    if (!confirm("Diese Meisterschaft wirklich löschen?")) return;
+    state.champs = state.champs.filter(x=>x.id!==c.id);
+    save(); state.view={screen:"home",champId:null,tab:"setup",raceId:null}; render();
+  };
+
+  // Rennen wählen
+  $$("[data-race]").forEach(b => b.onclick = () => { state.view.raceId=b.dataset.race; render(); });
+
+  // Punkte: Platz-Auswahl füllt Punktefeld
+  $$("[data-place]").forEach(sel => sel.onchange = () => {
+    const did = sel.dataset.place, place = +sel.value;
+    if (!place) return;
+    const pts = pointsForPlace(place);
+    const inp = document.querySelector(`[data-pts="${did}"]`);
+    inp.value = pts; saveScore(c, did, pts);
+  });
+  // Punkte: direkte Eingabe
+  $$("[data-pts]").forEach(inp => inp.oninput = () => {
+    saveScore(c, inp.dataset.pts, inp.value);
+  });
+  const cr = $("#clearRace");
+  if (cr) cr.onclick = () => {
+    if (!confirm("Punkte dieses Rennens zurücksetzen?")) return;
+    delete c.results[state.view.raceId]; save(); render();
+  };
+}
+
+function saveScore(c, did, value){
+  const rid = state.view.raceId;
+  if (!c.results[rid]) c.results[rid] = {};
+  if (value==="" || value===null){ delete c.results[rid][did]; }
+  else c.results[rid][did] = Math.round(+value)||0;
+  save();
+}
+
+function esc(s){ return (s??"").toString().replace(/[&<>"']/g, m =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+
+load();
+</script>
+</body>
+</html>

@@ -1,0 +1,50 @@
+plugins {
+    id 'com.android.application'
+}
+
+// Signier-Daten: lokal aus keystore.properties, im CI aus Umgebungsvariablen
+def keystorePropsFile = rootProject.file("keystore.properties")
+def keystoreProps = new Properties()
+if (keystorePropsFile.exists()) {
+    keystoreProps.load(new FileInputStream(keystorePropsFile))
+}
+def storePath = keystoreProps.getProperty("storeFile") ?: System.getenv("KEYSTORE_FILE")
+
+android {
+    namespace 'com.heatcounter.app'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.heatcounter.app"
+        minSdk 23
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+    }
+
+    signingConfigs {
+        release {
+            if (storePath != null) {
+                storeFile file(storePath)
+                storePassword keystoreProps.getProperty("storePassword") ?: System.getenv("KEYSTORE_PASS")
+                keyAlias keystoreProps.getProperty("keyAlias") ?: System.getenv("KEY_ALIAS")
+                keyPassword keystoreProps.getProperty("keyPassword") ?: System.getenv("KEY_PASS")
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+            minifyEnabled false
+        }
+        debug {
+            debuggable true
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
