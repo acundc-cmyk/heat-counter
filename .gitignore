@@ -1,0 +1,13 @@
+# Schlüssel und Passwörter NIEMALS committen
+keystore.jks
+keystore.b64
+keystore.properties
+
+# Build-Ausgaben
+/build/
+app/build/
+.gradle/
+fdroidrepo/
+public/
+local.properties
+.idea/
