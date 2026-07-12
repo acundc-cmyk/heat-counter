@@ -256,6 +256,20 @@
   .modal-actions{display:flex;gap:10px;justify-content:flex-end}
   .modal-actions .btn{width:auto;flex:none;padding:11px 16px}
   .btn.danger2{background:#e0503a;color:#210f09}
+  .backup-row{display:flex;gap:10px;margin-top:12px}
+  .backup-row .btn{flex:1}
+  .toast{position:fixed;left:50%;bottom:34px;transform:translateX(-50%) translateY(10px);
+    background:#000000dc;color:#fff;padding:11px 16px;border-radius:10px;font-size:14px;
+    z-index:1100;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;max-width:82%;text-align:center}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  textarea.modal-input{height:130px;resize:none;line-height:1.4;font-family:ui-monospace,monospace;font-size:13px}
+  .filepick{width:100%;margin-bottom:14px;font-size:13px;color:var(--muted)}
+  .picklist{max-height:210px;overflow-y:auto;margin-bottom:12px}
+  .pickrow{display:flex;align-items:center;gap:11px;padding:9px 4px;cursor:pointer}
+  .pickrow input{width:18px;height:18px;flex:none;accent-color:var(--heat)}
+  .pickmeta b{font-size:15px;display:block}
+  .pickmeta small{color:var(--muted);font-size:12px}
+  .allrow{border-bottom:1px solid var(--line);margin-bottom:4px;padding-bottom:11px}
 </style>
 </head>
 <body>
@@ -578,7 +592,11 @@ function viewHome(){
     <p class="sub">Lege eine Saison an, trage nach jedem Rennen die Punkte ein und behalte die Gesamtwertung im Blick.</p>
     <div class="card">${list}</div>
     <button class="btn" id="newChamp">＋ Neue Meisterschaft starten</button>
-    <p class="foot">Daten bleiben nur auf diesem Gerät gespeichert.</p>
+    <div class="backup-row">
+      <button class="btn ghost slim" id="exportBtn">Exportieren</button>
+      <button class="btn ghost slim" id="importBtn">Importieren</button>
+    </div>
+    <p class="foot">Daten bleiben nur auf diesem Gerät gespeichert. Über „Exportieren / Importieren" überträgst du sie auf ein anderes Gerät.</p>
   `;
 }
 
@@ -872,6 +890,9 @@ function wire(){
     state.view = {screen:"champ", champId:el.dataset.open, tab:"setup", raceId:null}; render();
   });
 
+  const eb = $("#exportBtn"); if (eb) eb.onclick = () => exportData();
+  const ib = $("#importBtn"); if (ib) ib.onclick = () => importData();
+
   // Zurück / Tabs
   const bk = $("#back"); if (bk) bk.onclick = () => { state.view={screen:"home",champId:null,tab:"setup",raceId:null}; render(); };
   $$("[data-tab]").forEach(b => b.onclick = () => { state.view.tab=b.dataset.tab; render(); });
@@ -1010,6 +1031,124 @@ function askConfirm(title, okLabel){
     ov.querySelector('[data-ok]').onclick = () => done(true);
     ov.addEventListener('click', e => { if (e.target === ov) done(false); });
   });
+}
+
+function toast(msg){
+  const t = document.createElement('div');
+  t.className = 'toast'; t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(()=>t.classList.add('show'), 10);
+  setTimeout(()=>{ t.classList.remove('show'); setTimeout(()=>t.remove(),250); }, 2200);
+}
+
+function exportData(){
+  if(!state.champs.length){ toast('Noch keine Daten zum Exportieren'); return; }
+  const ov = document.createElement('div'); ov.className='modal-ov';
+  const rows = state.champs.map((c,i) => `
+    <label class="pickrow">
+      <input type="checkbox" class="expchk" data-i="${i}" checked>
+      <span class="pickmeta"><b>${esc(c.name)}</b><small>${c.drivers.length} Fahrer · ${c.tracks.length} Rennen</small></span>
+    </label>`).join('');
+  ov.innerHTML = `<div class="modal-box">
+    <div class="modal-title">Daten exportieren</div>
+    <p class="sub" style="margin:-6px 0 8px">Wähle die Meisterschaften, die exportiert werden sollen. Die Fahrer kommen mit ihrer Meisterschaft mit.</p>
+    <label class="pickrow allrow"><input type="checkbox" id="expAll" checked><span class="pickmeta"><b>Alle auswählen</b></span></label>
+    <div class="picklist">${rows}</div>
+    <textarea class="modal-input" style="height:76px" readonly></textarea>
+    <div class="modal-actions">
+      <button class="btn ghost slim" data-close>Schließen</button>
+      <button class="btn ghost slim" data-file>Als Datei</button>
+      <button class="btn slim" data-copy>Kopieren</button>
+    </div></div>`;
+  document.body.appendChild(ov);
+  const ta = ov.querySelector('textarea');
+  const chks = [...ov.querySelectorAll('.expchk')];
+  const allBox = ov.querySelector('#expAll');
+  const selected = () => chks.filter(x=>x.checked).map(x => state.champs[+x.dataset.i]);
+  const build = () => {
+    const champs = selected();
+    const data = JSON.stringify({app:'heat-zaehler', version:1, exportedAt:new Date().toISOString(), champs});
+    ta.value = data;
+    return {data, count:champs.length};
+  };
+  chks.forEach(x => x.onchange = () => { allBox.checked = chks.every(c=>c.checked); build(); });
+  allBox.onchange = () => { chks.forEach(x => x.checked = allBox.checked); build(); };
+  build();
+  const close = () => ov.remove();
+  ov.querySelector('[data-close]').onclick = close;
+  ov.addEventListener('click', e => { if (e.target === ov) close(); });
+  ov.querySelector('[data-copy]').onclick = () => {
+    const {data, count} = build();
+    if(!count){ toast('Nichts ausgewählt'); return; }
+    ta.focus(); ta.select(); try{ ta.setSelectionRange(0, ta.value.length); }catch(_){}
+    let ok=false; try{ ok=document.execCommand('copy'); }catch(_){}
+    if(!ok && navigator.clipboard){ navigator.clipboard.writeText(data).then(()=>toast('Kopiert')).catch(()=>{}); return; }
+    toast(ok ? 'Kopiert' : 'Markiert – lange drücken und kopieren');
+  };
+  ov.querySelector('[data-file]').onclick = () => {
+    const {data, count} = build();
+    if(!count){ toast('Nichts ausgewählt'); return; }
+    try{
+      const blob = new Blob([data], {type:'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'heat-zaehler-backup.json';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url), 1000);
+    }catch(_){ toast('Datei-Speichern hier nicht möglich – bitte den Text kopieren'); }
+  };
+}
+
+function sanitizeChamps(arr){
+  return arr.map(c => ({
+    id: c.id || uid(),
+    name: c.name || 'Import',
+    drivers: Array.isArray(c.drivers) ? c.drivers : [],
+    tracks: Array.isArray(c.tracks) ? c.tracks : [],
+    results: (c.results && typeof c.results === 'object') ? c.results : {}
+  }));
+}
+
+function importData(){
+  const ov = document.createElement('div'); ov.className='modal-ov';
+  ov.innerHTML = `<div class="modal-box">
+    <div class="modal-title">Daten importieren</div>
+    <p class="sub" style="margin:-6px 0 10px">Text einfügen oder eine Backup-Datei wählen. Dann entscheiden, ob alles ersetzt oder ergänzt wird.</p>
+    <textarea class="modal-input" placeholder="Exportierten Text hier einfügen…"></textarea>
+    <input type="file" accept="application/json,.json" class="filepick">
+    <div class="modal-actions">
+      <button class="btn ghost slim" data-close>Abbrechen</button>
+      <button class="btn ghost slim danger2" data-replace>Ersetzen</button>
+      <button class="btn slim" data-add>Hinzufügen</button>
+    </div></div>`;
+  document.body.appendChild(ov);
+  const ta = ov.querySelector('textarea');
+  const fp = ov.querySelector('.filepick');
+  const close = () => ov.remove();
+  ov.querySelector('[data-close]').onclick = close;
+  ov.addEventListener('click', e => { if (e.target === ov) close(); });
+  fp.onchange = () => {
+    const f = fp.files && fp.files[0]; if(!f) return;
+    const r = new FileReader(); r.onload = () => { ta.value = r.result; }; r.readAsText(f);
+  };
+  const parse = () => {
+    let obj; try{ obj = JSON.parse(ta.value.trim()); }catch(_){ toast('Kein gültiges Backup erkannt'); return null; }
+    if(!obj || !Array.isArray(obj.champs)){ toast('Kein gültiges Backup erkannt'); return null; }
+    return sanitizeChamps(obj.champs);
+  };
+  ov.querySelector('[data-replace]').onclick = async () => {
+    const champs = parse(); if(!champs) return;
+    if(!(await askConfirm(`Alle vorhandenen Daten ersetzen? Es werden ${champs.length} Meisterschaft(en) geladen.`, 'Ersetzen'))) return;
+    state.champs = champs; save(); close();
+    state.view = {screen:'home', champId:null, tab:'setup', raceId:null}; render();
+    toast('Importiert');
+  };
+  ov.querySelector('[data-add]').onclick = () => {
+    const champs = parse(); if(!champs) return;
+    const existing = new Set(state.champs.map(c=>c.id));
+    champs.forEach(c => { if(existing.has(c.id)) c.id = uid(); state.champs.unshift(c); });
+    save(); close(); render(); toast(champs.length + ' hinzugefügt');
+  };
 }
 
 load();
