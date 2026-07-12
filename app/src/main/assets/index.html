@@ -243,6 +243,19 @@
     letter-spacing:.06em;display:inline-flex;align-items:center;gap:6px;margin-bottom:4px}
   .sub{color:var(--muted);font-size:13px;margin:-6px 0 16px}
   .foot{color:#5b616e;font-size:11px;text-align:center;margin-top:24px;letter-spacing:.04em}
+
+  /* Eingebaute Dialoge (statt System-prompt/confirm) */
+  .modal-ov{position:fixed;inset:0;background:#000000b0;display:flex;align-items:center;
+    justify-content:center;z-index:1000;padding:24px}
+  .modal-box{background:var(--panel);border:1px solid var(--line);border-radius:16px;
+    padding:20px;width:100%;max-width:360px;box-shadow:0 20px 50px #000b}
+  .modal-title{font-size:16px;font-weight:700;margin-bottom:14px;line-height:1.35}
+  .modal-input{width:100%;font-size:16px;color:var(--text);background:var(--panel-2);
+    border:1px solid var(--line);border-radius:11px;padding:12px 13px;margin-bottom:16px;outline:none}
+  .modal-input:focus{border-color:var(--heat)}
+  .modal-actions{display:flex;gap:10px;justify-content:flex-end}
+  .modal-actions .btn{width:auto;flex:none;padding:11px 16px}
+  .btn.danger2{background:#e0503a;color:#210f09}
 </style>
 </head>
 <body>
@@ -847,9 +860,9 @@ function wire(){
 
   // Home
   const nc = $("#newChamp");
-  if (nc) nc.onclick = () => {
-    const name = prompt("Name der Meisterschaft:", "Saison " + new Date().getFullYear());
-    if (!name) return;
+  if (nc) nc.onclick = async () => {
+    const name = await askText("Name der Meisterschaft:", "Saison " + new Date().getFullYear());
+    if (!name || !name.trim()) return;
     const c = { id:uid(), name:name.trim(), drivers:[], tracks:[], results:{} };
     state.champs.unshift(c); save();
     state.view = {screen:"champ", champId:c.id, tab:"setup", raceId:null};
@@ -920,8 +933,8 @@ function wire(){
 
   // Meisterschaft löschen
   const dc = $("#delChamp");
-  if (dc) dc.onclick = () => {
-    if (!confirm("Diese Meisterschaft wirklich löschen?")) return;
+  if (dc) dc.onclick = async () => {
+    if (!(await askConfirm("Diese Meisterschaft wirklich löschen?", "Löschen"))) return;
     state.champs = state.champs.filter(x=>x.id!==c.id);
     save(); state.view={screen:"home",champId:null,tab:"setup",raceId:null}; render();
   };
@@ -942,8 +955,8 @@ function wire(){
     saveScore(c, inp.dataset.pts, inp.value);
   });
   const cr = $("#clearRace");
-  if (cr) cr.onclick = () => {
-    if (!confirm("Punkte dieses Rennens zurücksetzen?")) return;
+  if (cr) cr.onclick = async () => {
+    if (!(await askConfirm("Punkte dieses Rennens zurücksetzen?", "Zurücksetzen"))) return;
     delete c.results[state.view.raceId]; save(); render();
   };
 }
@@ -958,6 +971,46 @@ function saveScore(c, did, value){
 
 function esc(s){ return (s??"").toString().replace(/[&<>"']/g, m =>
   ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+
+/* Eigene Dialoge – funktionieren auch in der App (WebView) */
+function askText(title, def){
+  return new Promise(resolve => {
+    const ov = document.createElement('div');
+    ov.className = 'modal-ov';
+    ov.innerHTML = `<div class="modal-box">
+      <div class="modal-title">${esc(title)}</div>
+      <input class="modal-input" type="text" value="${esc(def||'')}">
+      <div class="modal-actions">
+        <button class="btn ghost slim" data-cancel>Abbrechen</button>
+        <button class="btn slim" data-ok>OK</button>
+      </div></div>`;
+    document.body.appendChild(ov);
+    const input = ov.querySelector('.modal-input');
+    const done = v => { ov.remove(); resolve(v); };
+    ov.querySelector('[data-cancel]').onclick = () => done(null);
+    ov.querySelector('[data-ok]').onclick = () => done(input.value);
+    ov.addEventListener('click', e => { if (e.target === ov) done(null); });
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') done(input.value); });
+    setTimeout(() => { input.focus(); input.select(); }, 60);
+  });
+}
+function askConfirm(title, okLabel){
+  return new Promise(resolve => {
+    const ov = document.createElement('div');
+    ov.className = 'modal-ov';
+    ov.innerHTML = `<div class="modal-box">
+      <div class="modal-title">${esc(title)}</div>
+      <div class="modal-actions">
+        <button class="btn ghost slim" data-cancel>Abbrechen</button>
+        <button class="btn slim danger2" data-ok>${esc(okLabel||'OK')}</button>
+      </div></div>`;
+    document.body.appendChild(ov);
+    const done = v => { ov.remove(); resolve(v); };
+    ov.querySelector('[data-cancel]').onclick = () => done(false);
+    ov.querySelector('[data-ok]').onclick = () => done(true);
+    ov.addEventListener('click', e => { if (e.target === ov) done(false); });
+  });
+}
 
 load();
 </script>

@@ -3,6 +3,7 @@ package com.heatcounter.app;
 import android.app.Activity;
 import android.os.Bundle;
 import android.view.KeyEvent;
+import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -21,6 +22,7 @@ public class MainActivity extends Activity {
         s.setDomStorageEnabled(true);   // localStorage bleibt gespeichert
         s.setDatabaseEnabled(true);
         web.setWebViewClient(new WebViewClient());
+        web.setWebChromeClient(new WebChromeClient());  // ermoeglicht JS-Dialoge
 
         setContentView(web);
         web.loadUrl("file:///android_asset/index.html");
